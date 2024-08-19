@@ -868,3 +868,103 @@ class FpCurve():
             expression += f'{indents}  (xy {point.X} {point.Y})\n'
         expression += f'{indents}) (layer "{dequote(self.layer)}"){width}{locked}{tstamp}){endline}'
         return expression
+
+@dataclass
+class FpProperty():
+
+    type: str = "reference"
+    """The ``type`` attribute defines the type of property."""
+
+    text: str = "%REF"
+    """The ``text`` attribute is a string that defines the text"""
+
+    position: Position = field(default_factory=lambda: Position())
+    """The ``position`` defines the X and Y position coordinates and optional orientation angle of
+    the text"""
+
+    layer: str = "F.SilkS"
+    """The ``layer`` token defines the canonical layer the text resides on"""
+
+    knockout: bool = False
+    """The ``knockout`` token defines if the text is inverted (means transparent text and colored
+    background insted of colored text and transparent background)"""
+
+    hide: bool = False
+    """The optional ``hide`` token, defines if the text is hidden"""
+
+    effects: Effects = field(default_factory=lambda: Effects())
+    """The ``effects`` token defines how the text is displayed"""
+
+    tstamp: Optional[str] = None      # Used since KiCad 6
+    """The ``tstamp`` token defines the unique identifier of the text object"""
+
+    renderCache: Optional[RenderCache] = None
+    """If the ``effects`` token prescribe a TrueType font then the optional ``render_cache`` token
+    should be given in case the font can not be found on the current system.
+
+    Available since KiCad v7"""
+
+    @classmethod
+    def from_sexpr(cls, exp: list) -> FpText:
+        """Convert the given S-Expresstion into a FpText object
+
+        Args:
+            - exp (list): Part of parsed S-Expression ``(fp_text ...)``
+
+        Raises:
+            - Exception: When given parameter's type is not a list
+            - Exception: When the first item of the list is not fp_text
+
+        Returns:
+            - FpText: Object of the class initialized with the given S-Expression
+        """
+        if not isinstance(exp, list):
+            raise Exception("Expression does not have the correct type")
+
+        if exp[0] != 'fp_text':
+            raise Exception("Expression does not have the correct type")
+
+        object = cls()
+        object.type = exp[1]
+        object.text = exp[2]
+        for item in exp[3:]:
+            if type(item) != type([]):
+                if item == 'hide': object.hide = True
+                continue
+            if item[0] == 'at': object.position = Position().from_sexpr(item)
+            if item[0] == 'layer':
+                object.layer = item[1]
+                if(len(item) > 2):
+                    if(item[2] == "knockout"):
+                        object.knockout = True
+            if item[0] == 'effects': object.effects = Effects().from_sexpr(item)
+            if item[0] == 'tstamp': object.tstamp = item[1]
+            if item[0] == 'render_cache': object.renderCache = RenderCache.from_sexpr(item)
+        return object
+
+    def to_sexpr(self, indent: int = 2, newline: bool = True) -> str:
+        """Generate the S-Expression representing this object
+
+        Args:
+            - indent (int): Number of whitespaces used to indent the output. Defaults to 2.
+            - newline (bool): Adds a newline to the end of the output. Defaults to True.
+
+        Returns:
+            - str: S-Expression of this object
+        """
+        indents = ' '*indent
+        endline = '\n' if newline else ''
+
+        hide = ' hide' if self.hide else ''
+        unlocked = ' unlocked' if self.position.unlocked else ''
+        posA = f' {self.position.angle}' if self.position.angle is not None else ''
+        ko = ' knockout' if self.knockout else ''
+
+        expression =  f'{indents}(property "{self.type}" "{dequote(self.text)}" (at {self.position.X} {self.position.Y}{posA}{unlocked}) (layer "{dequote(self.layer)}"{ko}){hide}\n'
+        expression += f'{indents}  {self.effects.to_sexpr()}'
+        if self.tstamp is not None:
+            expression += f'{indents}  (tstamp {self.tstamp})\n'
+        if self.renderCache is not None:
+            expression += self.renderCache.to_sexpr(indent+2)
+        expression += f'{indents}){endline}'
+        return expression
