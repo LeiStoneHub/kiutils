@@ -921,7 +921,7 @@ class FpProperty():
         if not isinstance(exp, list):
             raise Exception("Expression does not have the correct type")
 
-        if exp[0] != 'fp_text':
+        if exp[0] != 'property':
             raise Exception("Expression does not have the correct type")
 
         object = cls()
